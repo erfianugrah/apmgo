@@ -2,20 +2,18 @@ package main
 
 import (
 	"fmt"
-	"image"
-	"image/color"
-	"math"
-	"sync"
-	"time"
-
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/data/binding"
-	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"github.com/robotn/gohook"
+	"image"
+	"image/color"
+	"math"
+	"sync"
+	"time"
 )
 
 type RingBuffer struct {
@@ -65,6 +63,8 @@ type APMTracker struct {
 	updateInterval time.Duration
 	app            fyne.App
 	window         fyne.Window
+	isMiniView     bool
+	miniWindow     fyne.Window
 	currentAPMVar  binding.String
 	peakAPMVar     binding.String
 	avgAPMVar      binding.String
@@ -168,6 +168,7 @@ func (a *APMTracker) updateGUI() {
 	avgAPM := a.calculateAverageAPM()
 
 	a.currentAPMVar.Set(fmt.Sprintf("Current APM: %d", currentAPM))
+	a.miniWindow.Content().(*widget.Label).SetText(fmt.Sprintf("APM: %d", currentAPM))
 	a.peakAPM = int(math.Max(float64(a.peakAPM), float64(currentAPM)))
 	a.peakAPMVar.Set(fmt.Sprintf("Peak APM: %d", a.peakAPM))
 	a.avgAPMVar.Set(fmt.Sprintf("Average APM: %.2f", avgAPM))
@@ -178,15 +179,11 @@ func (a *APMTracker) updateGUI() {
 }
 
 func (a *APMTracker) setupGUI() {
-	a.app = app.NewWithID("APM Tracker")
+	a.app = app.New()
 	a.window = a.app.NewWindow("APM Tracker")
 	a.window.Resize(fyne.NewSize(600, 400))
 
-	// Set a theme if desired
-	a.app.Settings().SetTheme(theme.DarkTheme())
-
 	currentAPMLabel := widget.NewLabelWithData(a.currentAPMVar)
-	currentAPMLabel.TextStyle = fyne.TextStyle{Bold: true}
 	peakAPMLabel := widget.NewLabelWithData(a.peakAPMVar)
 	avgAPMLabel := widget.NewLabelWithData(a.avgAPMVar)
 
@@ -206,6 +203,13 @@ func (a *APMTracker) setupGUI() {
 
 	a.window.SetContent(mainFrame)
 
+	// Create mini-view window
+	a.miniWindow = a.app.NewWindow("")
+	a.miniWindow.SetContent(widget.NewLabel(""))
+	a.miniWindow.Resize(fyne.NewSize(120, 30))
+	a.miniWindow.SetFixedSize(true)
+	a.miniWindow.Hide()
+
 	a.window.SetOnClosed(func() {
 		a.onClosing()
 	})
@@ -216,16 +220,11 @@ func (a *APMTracker) setupGUI() {
 
 func (a *APMTracker) toggleView() {
 	if a.isMiniView {
-		a.window.Resize(fyne.NewSize(600, 400))
-		a.window.SetContent(container.NewVBox(
-			widget.NewLabelWithData(a.currentAPMVar),
-			widget.NewLabelWithData(a.peakAPMVar),
-			widget.NewLabelWithData(a.avgAPMVar),
-			a.graphImage,
-		))
+		a.miniWindow.Hide()
+		a.window.Show()
 	} else {
-		a.window.Resize(fyne.NewSize(120, 30))
-		a.window.SetContent(widget.NewLabelWithData(a.currentAPMVar))
+		a.window.Hide()
+		a.miniWindow.Show()
 	}
 	a.isMiniView = !a.isMiniView
 }
